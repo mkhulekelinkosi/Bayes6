@@ -1,0 +1,169 @@
+---
+title: "Assignment2 2017159092"
+author: "Mkhulekeli Nkosi"
+date: "2025-02-28"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read data
+
+```{r}
+d <- openxlsx::read.xlsx('BayesAssignment2of2025.xlsx', 'Data')
+names(d)
+```
+1. They should have not because it will now be hard to work with the data cause we won't know which technique for random sampling was used and how they dealt with missing values.(ATLAS.ti. (n.d.). Random sampling: Definition, methods, & examples. Retrieved February 28, 2025, from https://atlasti.com/research-hub/random-sampling) 
+
+
+2.Date and time are not annoying factors removing them will make the data useless since it is time series data.And will help us to know other reasons for that particular sale in that day other than the given variables.(Date and Time may be critical factors in retail sales. Let’s Data Science. (2023). Date and Time Features. Retrieved from https://letsdatascience.com/date-and-time-features/ ).
+
+3.Email is not the only way to share a data set one can use online services, git large file storage and cloud data base management.Making the data small information is lost and this might lead to invalid inferences due to loss of statistical power and makes it hard for data to met some assumptions (Understanding normality tests: A guide to Shapiro-Wilk and other methods. The Southwest Respiratory and Critical Care Chronicles, 9(40), 45–50. Retrieved from https://pulmonarychronicles.com/index.php/pulmonarychronicles/article/view/1251/2689.).
+
+4.we should have also send them a list of things they should not do to data to avoid loss of information and also asking for raw data so we can clean data ourselves.
+
+## clean data
+
+5. A simple summary of the data is a good tool to use to check for issues in the data and it gives the descriptive statistics and helps check for missing values, inconsistencies, duplicates and outliers. Even visualization of the data can help check for issues and the shape of the data using histograms and density plots (R Core Team. (2023).)
+
+```{r}
+summary(d)
+hist(d$y)
+plot(density(d$y))
+```
+
+6. One can use more accurate methods to find outliers like the boxplot diagram, scatter plots or statistical tests which are Genralised Extreme Studentized Deviate Test (NIST/SEMATECH e-Handbook of Statistical Methods).
+
+```{r}
+
+d$y[d$y > (mean(d$y) + 3*sd(d$y))] 
+library(EnvStats)
+rosnerTest(d$y, k = 5)
+
+```
+
+
+7.Removing the outlier would be not a good idea since we working with profit data which depends on sales thus one must investigate first the reason for the outliers (Adams et al., 2019).
+
+
+```{r}
+d <- d |> subset(d$y <= (mean(d$y) + 3*sd(d$y)))
+```
+
+
+# Check Assumptions.
+
+8. Normality is not required for the dependent variable in linear regression, but it is for the residuals. The estimation method used in linear regression, ordinary least squares (OLS) method, doesn’t not require the normality assumption,( Leech, N. L., Barrett, K. C., & Morgan, G. A. (2014)). 
+
+
+```{r}
+shapiro.test(d$y) 
+
+```
+
+9. linear regression can still be performed, but usually ANOVA will require data points to be transformed using log transformation or Box-Cox if the data does not follow normality after transformation we can still perform ANOVA.(Osborne, J. W. & Waters, E., (2002)).
+
+10. The assumptions of ANCOVA like those of regression assume normality of residuals thus the alternative would be to fit a non - parametric regression.(Tibshirani, R.(2013))
+
+[11 - 12]. ANCOVA assumptions are being checked and the F - test checks for homogeneity of variances in the two groups given the results y.( Leech, N. L., Barrett, K. C., & Morgan, G. A. (2014). SPSS for Intermediate Statistics: Use and Interpretation (5th ed.). Routledge) 
+
+
+```{r}
+var.test(y ~ x3, data = d)
+
+```
+13. the p - value is not less than 0.05 which is the default alpha for the var.test in R thus we fail to reject the null hypothesis(https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/var.test). this means that an equal variance t-test 
+
+14. In this case an equal variance t test should be  used since we failed to reject HO of the f - test but it will be advisable to use another test since assumptions of normality are not met given the above Shapiro Wilk test (Kim, T. K., & Park, J. H. (2019)).
+
+15. Yes we can but because we failed to reject null hypothesis is given the shapiro wilk test we cannot use it and also the population standard deviations are unknown(Curtis, A. E., Smith, T. A., Ziganshin, B. A., & Elefteriades, J. A. (2016).).
+
+16. No we cannot take x3 as the main effect since the t - test only tests for equality of means not for the main effect.(Kim, T. K., & Park, J. H. (2019))
+
+17.Its good to check for Auto correlation before performing ANCOVA because we working with time series data and this will check if the assumption of independence of the of the residuals holds.( ChatGPT. (2025, March 1).).
+
+18.This is the correct but it should be done on the dependent variable and best way to calculate autocorrelation is to use Durbin - Waston test.
+
+[19 - 20 ] No we need to calculate autocorrelation of the residuals to know if they are correlated  the significance correlation of the dependent variable does not assume significant correlation of the residuals. ( ChatGPT. (2025, March 1)).
+
+```{r}
+n_obs <- nrow(d) 
+n_segments <- 4 
+segment_size <- ceiling(n_obs/n_segments) 
+segmented_matrix <- sapply(1:n_segments, \(i) { 
+  segment <- ((i-1)*segment_size + 1):min((i*segment_size), n_obs) 
+  c(d$x1[segment], rep(NA_real_, segment_size - length(segment))) 
+}) 
+segmented_matrix |> cor(use = 'pairwise.complete.obs') |>  
+  corrplot::corrplot()
+```
+
+
+21.Yes a mixed fixed effects model will be fitted if the residuals are know to be correlated but the correlation plot shows that there is weak  correlation thus mixed fixed models are not fitted since autocorrelation is not present in x1. 
+
+22. That is true which means ANCOVA can still be fitted since no autocorrelation is observed meaning assumption of independence of residual still holds for the data.(Field, 2013).
+
+23.ANCOVA can still be applied even if the sample is imbalanced. (Laerd Statistics, 2023).
+
+
+
+```{r}
+aov(y ~ x1 + x2 + x3, data = d) |> summary()
+```
+
+
+25. This is true because it does not affect the dependent variable with p - value greater than 0.05.
+
+```{r}
+aov(y ~ x1 + x3, data = d) |> summary() 
+coef(aov(y ~ x1 + x3, data = d))
+```
+ 
+26. One can choose to keep the variable.
+
+
+27. stepwise is often associated with over fitting thus we need to worry about over fitting.
+
+
+28. $$ Y_{ij} = 707.21961  -10.81188 x_{1i} -183.61300x_{3i} + e_{i} $$ as the model that will be used for prediction
+
+
+29. No we need to choose values careful specially for $ x_{3}$ it should only be 1 or 0 values for $x_{1}$ it can be any value as-long as it is realistic no one can have 100 years of experience.
+
+30.We need to introduce confident intervals for our predicted values then we can be 95% confident that the predicted value lies in that interval. 
+
+# References.
+1.(ATLAS.ti. (n.d.). Random sampling: Definition, methods, & examples. Retrieved February 28, 2025, from https://atlasti.com/research-hub/random-sampling) 
+
+2. Date and Time Features. Retrieved from https://letsdatascience.com/date-and-time-features/ 
+
+3. The Southwest Respiratory and Critical Care Chronicles, 9(40), 45–50. Retrieved from https://pulmonarychronicles.com/index.php/pulmonarychronicles/article/view/1251/2689. 
+
+4. Investopedia. (2023). Normal Distribution. Retrieved from https://www.investopedia.com/terms/n/normaldistribution.asp
+
+5.Linear Regression: Should Dependent and Independent Variables Be Distributed Normally? Retrieved from https://www.statsimprove.com/en/linear-regression-should-dependent-and-independent-variables-be-distributed-normally/
+
+6.Analysis of Covariance (ANCOVA). Retrieved from https://www.statisticssolutions.com/analysis-of-covariance-ancova/ ANCOVA might be a reasonable choice if x3 is a binary categorical variable.
+
+
+8.Leech, N. L., Barrett, K. C., & Morgan, G. A. (2014). SPSS for Intermediate Statistics: Use and Interpretation (5th ed.). Routledge.
+
+
+9. Built In. (n.d.). Z-Test: What It Is & How to Perform It. Retrieved from https://builtin.com/data-science/z-test-statistics. They used t-test instead of z-test like initially stated in the statement. 
+
+10. James, G., Witten, D., Hastie, T., & Tibshirani, R. (2013). An Introduction to Statistical Learning. Springer.
+
+11. Tibshirani, R., & Wasserman, L. (2013). Nonparametric regression. Statistical Machine Learning, Spring.
+
+12.M. A. (2004). Babyak, M. A. (2004). What You See May Not Be What You Get: A Brief, Nontechnical Introduction to Overfitting in Regression-Type Models.  
+
+13. R Core Team. (2023). R: A language and environment for statistical computing. R Foundation for Statistical Computing. https://www.R-project.org.
+NIST/SEMATECH e-Handbook of Statistical Methods, http://www.itl.nist.gov/div898/handbook/, April 2012.
+14. Adams, J., Hayunga, D., Mansi, S., Reeb, D., & Verardi, V. (2019). Identifying and treating outliers in finance. Financial Management, 48(2), 345-384.
+15. Osborne, J. W., & Waters, E. (2002). Four assumptions of multiple regression that researchers should always test. Practical assessment, research, and evaluation, 8(1).
+16. Tibshirani, R., & Wasserman, L. (2013). Nonparametric regression. Statistical Machine Learning, Spring.
+17. Kim, T. K., & Park, J. H. (2019). More about the basic assumptions of t-test: normality and sample size. Korean journal of anesthesiology, 72(4), 331-335.
+18.Curtis, A. E., Smith, T. A., Ziganshin, B. A., & Elefteriades, J. A. (2016). The mystery of the Z-score. Aorta, 4(04), 124-130.
+19. ( ChatGPT. (2025, March 1). Why check for autocorrelation before performing ANCOVA. OpenAI. https://chat.openai.com).

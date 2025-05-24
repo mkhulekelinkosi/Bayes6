@@ -1,0 +1,39 @@
+---
+title: "Assignment6_bayes"
+author: "mkhulekeli Nkosi 2017159092"
+date: "2025-05-18"
+output: word_document
+---
+
+# 1. the residual error is caused by the different  groups that will do presentation and by the different groups of assesors. Also not having enough variables to explain the the final mark.
+
+# 2. There is always a factor that influences an outcome but according to the above assumption i would say in theis case they are enough for the average assessor mark to be correct on average.
+
+# 3. 
+
+```{r}
+data<- readxl::read_xlsx("BayesAssignment6of2025.xlsx")
+summary(data)
+sapply(data, class)
+
+colSums(is.na(data))
+library(mice)
+md.pattern(data)
+install.packages("naniar")
+library(naniar)
+vis_miss(data)
+
+```
+
+All the columns are numeric excerpt for the group column. And 45 missing values are observed in total. The missingness patterns given the visualisations on can conclude that the middingness is MAR because the missin values in lacture E are missing when lecture F And G are missing missingness is depndent on the two variables also lecture D only one is not dependent on G and F.
+
+# 4. 
+```{r}
+library(tidyr)
+
+long_data <- pivot_longer(data, 
+                          cols = c(LecturerA,LecturerB,LecturerC,LecturerD,LecturerE,LecturerF,LecturerG),
+                          names_to = c("Lecturer",".value","Score"),names_sep = "_")
+
+```
+

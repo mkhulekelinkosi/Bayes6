@@ -1,0 +1,104 @@
+---
+title: "bayes.6"
+author: "mkhulekeli Nkosi 2017159092"
+date: "2025-05-24"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(brms)
+library(knitr)
+```
+
+```{r}
+# Read data
+data <- read_excel("BayesAssignment6of2025.xlsx")
+
+# Reshape lecturer scores to long format
+long_data <- data %>%
+  select(Group, matches("Lecturer[A-G]")) %>%
+  pivot_longer(-Group, names_to = "Assessor", values_to = "Score") %>%
+  filter(!is.na(Score)) %>%
+  mutate(Group = factor(Group), Assessor = factor(Assessor))
+```
+
+```{r}
+# Missingness per assessor
+assessor_missing <- data %>%
+  select(matches("Lecturer[A-G]")) %>%
+  summarise(across(everything(), ~sum(is.na(.))))
+
+# Missingness per group
+group_missing <- data %>%
+  select(Group, matches("Lecturer[A-G]")) %>%
+  rowwise() %>%
+  mutate(Num_NA = sum(is.na(c_across(-Group)))) %>%
+  select(Group, Num_NA)
+
+kable(assessor_missing, caption = "Missing Scores per Assessor")
+kable(group_missing, caption = "Missing Scores per Group")
+```
+
+```{r}
+# Model formula: Group (fixed) + Assessor (random)
+model <- brm(
+  Score ~ Group + (1 | Assessor),
+  data = long_data,
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"),  # Vague priors for groups
+    set_prior("normal(0, 5)", class = "Intercept"),
+    set_prior("cauchy(0, 5)", class = "sd")   # Random effects
+  ),
+  cores = 4,
+  seed = 123
+)
+```
+
+```{r}
+# Fixed effects (group marks)
+group_estimates <- fixef(model, probs = c(0.025, 0.975)) %>%
+  as.data.frame() %>%
+  rownames_to_column("Group") %>%
+  filter(str_detect(Group, "^Group"))
+
+# Prediction intervals
+predictions <- posterior_predict(model)
+pred_intervals <- apply(predictions, 2, quantile, probs = c(0.025, 0.975))
+```
+
+```{r}
+# Random effects (assessor biases)
+assessor_biases <- ranef(model)$Assessor %>%
+  as.data.frame() %>%
+  rownames_to_column("Assessor") %>%
+  arrange(Estimate.Intercept)
+
+# Least biased assessor
+least_biased <- assessor_biases[which.min(abs(assessor_biases$Estimate.Intercept)), ]
+```
+
+```{r}
+# Calculate previous averages
+previous_avg <- data %>%
+  select(Group, Proposal, Literature, Quiz, Interview) %>%
+  mutate(Previous_Avg = rowMeans(select(., -Group), na.rm = TRUE)) %>%
+  select(Group, Previous_Avg)
+
+# Update model with informative priors
+model_prior <- update(
+  model,
+  prior = c(
+    set_prior("normal(0, 5)", class = "Intercept"),
+    set_prior("cauchy(0, 5)", class = "sd"),
+    # Set group priors based on previous performance
+    prior_string(
+      paste0("normal(", previous_avg$Previous_Avg, ", 5)"), 
+      class = "b", 
+      coef = paste0("Group", previous_avg$Group)
+    )
+  )
+)
+```
+
