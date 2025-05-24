@@ -1,11 +1,22 @@
 ---
 title: "Assignment6_bayes"
 author: "mkhulekeli Nkosi 2017159092"
-date:  "`r Sys.Date()`"
+date: "2025-05-18"
 output: word_document
 ---
+```{r}
+#(timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
+#dir.create(paste0("backups/auto_backup_", timestamp))
+#file.copy("scripts/", paste0("backups/auto_backup_", timestamp), recursive = TRUE))
+if (!dir.exists("backups1")) {
+  dir.create("backups1")
+}
+backup_dir <- file.path("backups1", paste0("auto_backup_1", timestamp))
+dir.create(backup_dir)
+file.copy("scripts/", backup_dir, recursive = TRUE)
+message("✅ Backup completed.")
 
-
+```
 
 # 1. 
 
@@ -46,64 +57,74 @@ unique(new_data$Lecturer)
 In our case the group of students is our Fixed effect because we not interested in how the next possible group will affect the final mark, with the lecturer as the random effect each group will experience the lecture effect and one would like to know how a different lecturer not included in this fit  will grade each group.(read slides)
 
 # 6.
-The prior for the group intercepts, and intercept is a normal prior and also the sigma as a cauchy.
 
-```{r,results='hide'}
+```{r}
 library(brms)
 model <- brm(
   formula = Score ~ Group  + (1 | Lecturer),
   data = new_data,
-  prior = c(
-    set_prior("normal(0, 10)", class = "b"), 
-    set_prior("normal(0, 5)", class = "Intercept"),
-    set_prior("cauchy(0, 5)", class = "sd")   
-  ),
   iter = 5000
 )
-```
-
-```{r}
 summary(model)
-
+est<- posterior_samples(model)
+pred<- posterior_predict(model)
+ranef(model)
+fixed_effects <- fixef(model, summary = TRUE) 
+pred<- posterior_epred(model)
+fit<-fitted(model)
+pred_vals <- predict(model, summary = TRUE)
+data<- cbind(new_data$Group,fit,pred_vals)
+data<- data[,-6]
 ```
-
 # 7.
 
 ```{r}
 
-fixed_effects <- fixef(model, summary = TRUE) 
-fit<-fitted(model)
-pred_vals <- predict(model, summary = TRUE)
-data_est<- cbind(new_data$Group,fit,pred_vals)
-data_est<- data_est[,c(-3,-6,-7)]
-colnames(data_est) <- c("Groups","estimates","CI2.5", "CI97.5", "PI2.5","PI97.5")
-print(data_est)
 ```
 
-
-# 8.
-
-lecturer B is least biased
-
-```{r}
-library(dplyr)
-assessor_biases <- ranef(model)$Lecturer %>%
-  as.data.frame() %>%
-  arrange(Estimate.Intercept)
-
-least_biased <- assessor_biases[which.min(abs(assessor_biases$Estimate.Intercept)), ]
-least_biased
-
-```
-
+# 8. 
 
 # 9.
 
 ```{r}
+library(tidyr)
+library(dplyr)
+
+long_data_mark<- new_data %>%
+  pivot_longer(cols = c(Proposal, Quiz,Literature,Interview),
+               names_to = "mark_type",
+               values_to = "mark")
+library(ggplot2)
+
+ggplot(long_data_mark, aes(x = mark, color = mark_type)) +
+  geom_density(size = 1.5) +
+  labs(title = "Density of Multiple Continuous Variables",
+       x = "Score",
+       y = "Density",
+       color = "Variable") +
+    xlim(25, 125) +
+  theme_minimal()
+
+
+
+hist(long_data_mark$mark/100)
+mean(long_data_mark$mark)
+sd(long_data_mark$mark)
+
+alpha =14
+beta = 6
+
+  
+model2 <- brm(
+  formula = (Score/100) ~ Group  + (1 | Lecturer),
+  data = new_data,
+  family = Beta(),
+  iter = 5000
+)
 
 ```
 
-
+Using the histogram and given that the values are bounded between 0 and 100 it makes a beta distribution with alpha less than  beta is chosen as our prior. And Given that the average mark is 70 one can use a total strength that is between 10 and 30 to have a moderate prior in our case 20 was chosen.(OpenAI. ChatGPT. May 23 version, 2025, https://chat.openai.com/.)
 
 
 

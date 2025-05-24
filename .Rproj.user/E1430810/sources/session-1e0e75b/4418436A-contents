@@ -46,29 +46,62 @@ unique(new_data$Lecturer)
 In our case the group of students is our Fixed effect because we not interested in how the next possible group will affect the final mark, with the lecturer as the random effect each group will experience the lecture effect and one would like to know how a different lecturer not included in this fit  will grade each group.(read slides)
 
 # 6.
+The prior for the group intercepts, and intercept is a normal prior and also the sigma as a cauchy.
 
-```{r}
+```{r,results='hide'}
 library(brms)
 model <- brm(
   formula = Score ~ Group  + (1 | Lecturer),
   data = new_data,
-  chains = 4,
-  cores = 4,
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"), 
+    set_prior("normal(0, 5)", class = "Intercept"),
+    set_prior("cauchy(0, 5)", class = "sd")   
+  ),
   iter = 5000
 )
-summary(model)
-est<- posterior_samples(model)
-pred<- posterior_predict(model)
-ranef(model)
-fixed_effects <- fixef(model, summary = TRUE) 
-pred<- posterior_epred(model)
-fit<-fitted(model)
-pred_vals <- predict(model, summary = TRUE)
-data<- cbind(new_data$Group,fit,pred_vals)
-data<- data[,-6]
 ```
+
+```{r}
+summary(model)
+
+```
+
 # 7.
 
+```{r}
+
+fixed_effects <- fixef(model, summary = TRUE) 
+fit<-fitted(model)
+pred_vals <- predict(model, summary = TRUE)
+data_est<- cbind(new_data$Group,fit,pred_vals)
+data_est<- data_est[,c(-3,-6,-7)]
+colnames(data_est) <- c("Groups","estimates","CI2.5", "CI97.5", "PI2.5","PI97.5")
+print(data.frame(data_est))
+```
+
+
+# 8.
+
+lecturer B is least biased
+
+```{r}
+library(dplyr)
+assessor_biases <- ranef(model)$Lecturer %>%
+  as.data.frame() %>%
+  arrange(Estimate.Intercept)
+
+least_biased <- assessor_biases[which.min(abs(assessor_biases$Estimate.Intercept)), ]
+least_biased
+
+```
+
+
+# 9.
+
+```{r}
+
+```
 
 
 
