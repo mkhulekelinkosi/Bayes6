@@ -45,32 +45,3 @@ unique(new_data$Lecturer)
 
 In our case the group of students is our Fixed effect because we not interested in how the next possible group will affect the final mark, with the lecturer as the random effect each group will experience the lecture effect and one would like to know how a different lecturer not included in this fit  will grade each group.(read slides)
 
-# 6.
-
-```{r}
-library(brms)
-model <- brm(
-  formula = Score ~ Group  + (1 | Lecturer),
-  data = new_data,
-  chains = 4,
-  cores = 4,
-  iter = 5000
-)
-summary(model)
-est<- posterior_samples(model)
-pred<- posterior_predict(model)
-ranef(model)
-fixed_effects <- fixef(model, summary = TRUE) 
-pred<- posterior_epred(model)
-fit<-fitted(model)
-pred_vals <- predict(model, summary = TRUE)
-data<- cbind(new_data$Group,fit,pred_vals)
-data<- data[,-6]
-```
-# 7.
-
-
-
-
-
-
