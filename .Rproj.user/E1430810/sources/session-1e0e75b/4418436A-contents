@@ -146,6 +146,8 @@ historical_data <- new_data %>%
   )
 ```
 
+The density plots an the fact that they data is bounded one can assume that the data are beta distributed for each group thus it makes sense to use beta distribution as our subjective priors for each group. but 
+
 
 
 
