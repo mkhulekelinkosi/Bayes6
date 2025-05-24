@@ -77,7 +77,7 @@ pred_vals <- predict(model, summary = TRUE)
 data_est<- cbind(new_data$Group,fit,pred_vals)
 data_est<- data_est[,c(-3,-6,-7)]
 colnames(data_est) <- c("Groups","estimates","CI2.5", "CI97.5", "PI2.5","PI97.5")
-print(data.frame(data_est))
+data_est<- data.frame(data_est)
 ```
 
 
@@ -100,7 +100,50 @@ least_biased
 # 9.
 
 ```{r}
+library(tidyr)
+library(dplyr)
 
+long_data_mark<- data[,c(1,9,10,11,12)] %>%
+  pivot_longer(cols = c(Proposal, Quiz,Literature,Interview),
+               names_to = "mark_type",
+               values_to = "mark")
+library(ggplot2)
+
+ggplot(long_data_mark, aes(x = mark, color = mark_type)) +
+  geom_density(size = 1.5) +
+  labs(title = "Density of Multiple Continuous Variables",
+       x = "Score",
+       y = "Density",
+       color = "Variable") +
+    xlim(25, 125) +
+  theme_minimal()
+
+
+
+library(fitdistrplus)
+
+
+historical_data <- new_data %>%
+ dplyr::select(Group, Proposal, Literature, Quiz, Interview) %>%
+  pivot_longer(-Group, names_to = "Component", values_to = "Score") %>%
+  mutate(Score_prop = Score / 100) %>%  # Scale to [0,1]
+  group_by(Group) %>%
+  summarise(
+    mean_prop = mean(Score_prop, na.rm = TRUE),
+    var_prop = var(Score_prop, na.rm = TRUE)
+  ) %>%
+  rowwise() %>%
+  mutate(
+    # Method of moments for Beta parameters
+    a = (mean_prop^2 - mean_prop^3 - mean_prop * var_prop) / var_prop,
+    b = (mean_prop * (1 - mean_prop)^2 - (1 - mean_prop) * var_prop) / var_prop,
+    # Ensure valid parameters (avoid negatives)
+    a = pmax(a, 0.1),
+    b = pmax(b, 0.1),
+    # Convert back to score scale (0-100)
+    mean_score = 100 * (a / (a + b)),
+    sd_score = 100 * sqrt((a * b) / ((a + b)^2 * (a + b + 1)))
+  )
 ```
 
 
