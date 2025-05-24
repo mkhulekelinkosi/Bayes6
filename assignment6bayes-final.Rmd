@@ -1,0 +1,209 @@
+---
+title: "Assignment6_bayes"
+author: "mkhulekeli Nkosi 2017159092"
+date:  "`r Sys.Date()`"
+output: word_document
+---
+
+
+
+# 1. 
+
+The residual error is caused by the difference in groups that will do presentation and by the different assessors. Also not having enough variables to explain the the final mark.
+
+# 2. 
+
+There is always a factor that influences an outcome but according to the above assumptions I would say in this case they are enough for the average assessor mark to be correct on average.
+
+# 3. 
+
+```{r}
+data<- readxl::read_xlsx("BayesAssignment6of2025.xlsx")
+summary(data)
+sapply(data, class)
+
+colSums(is.na(data))
+library(mice)
+md.pattern(data)
+
+```
+
+All the columns are numeric excerpt for the Group column. There are 45 missing values are observed in total. The missingness patterns given the visualizations, one can conclude that the middingness is MAR because the missing values in lecturer E are missing when lecturer F And G are missing missingness is dependent on the two variables also lecturer D only one is not dependent on G and F. This could be because the the groups have already been assessed 
+
+# 4. 
+
+```{r}
+library(tidyr)
+
+long_data <- pivot_longer(data, cols= c(LecturerA,LecturerB,LecturerC,LecturerD,LecturerE,LecturerF,LecturerG) ,names_to = c("Lecturer"), values_to = "Score")
+
+new_data<- na.omit(long_data)
+unique(new_data$Lecturer)
+```
+
+# 5. 
+
+In our case the group of students is our Fixed effect because we not interested in how the next possible group will affect the final mark, with the lecturer as the random effect each group will experience the lecture effect and one would like to know how a different lecturer not included in this fit  will grade each group.(read slides)
+
+# 6.
+The prior for the group intercepts, and intercept is a normal prior and also the sigma as a cauchy.
+
+```{r,results='hide'}
+library(brms)
+model <- brm(
+  formula = Score ~ Group  + (1 | Lecturer),
+  data = new_data,
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"), 
+    set_prior("normal(0, 5)", class = "Intercept"),
+    set_prior("cauchy(0, 5)", class = "sd")   
+  ),
+  iter = 5000
+)
+```
+
+```{r}
+summary(model)
+
+```
+
+# 7.
+
+```{r}
+
+fixed_effects <- fixef(model, summary = TRUE) 
+fit<-fitted(model)
+pred_vals <- predict(model, summary = TRUE)
+data_est<- cbind(new_data$Group,fit,pred_vals)
+data_est<- data_est[,c(-3,-6,-7)]
+colnames(data_est) <- c("Groups","estimates","CI2.5", "CI97.5", "PI2.5","PI97.5")
+data_est<- data.frame(data_est)
+```
+
+
+# 8.
+
+lecturer B is least biased
+
+```{r}
+library(dplyr)
+assessor_biases <- ranef(model)$Lecturer %>%
+  as.data.frame() %>%
+  arrange(Estimate.Intercept)
+
+least_biased <- assessor_biases[which.min(abs(assessor_biases$Estimate.Intercept)), ]
+least_biased
+
+```
+
+
+# 9.
+
+```{r}
+library(tidyr)
+library(dplyr)
+
+long_data_mark<- data[,c(1,9,10,11,12)] %>%
+  pivot_longer(cols = c(Proposal, Quiz,Literature,Interview),
+               names_to = "mark_type",
+               values_to = "mark")
+library(ggplot2)
+
+ggplot(long_data_mark, aes(x = mark, color = mark_type)) +
+  geom_density(size = 1.5) +
+  labs(title = "Density of Multiple Continuous Variables",
+       x = "Score",
+       y = "Density",
+       color = "Variable") +
+    xlim(25, 125) +
+  theme_minimal()
+
+
+
+library(fitdistrplus)
+
+
+historical_data <- new_data %>%
+ dplyr::select(Group, Proposal, Literature, Quiz, Interview) %>%
+  pivot_longer(-Group, names_to = "Component", values_to = "Score") %>%
+  mutate(Score_prop = Score / 100) %>%  
+  group_by(Group) %>%
+  summarise(
+    mean_prop = mean(Score_prop, na.rm = TRUE),
+    var_prop = var(Score_prop, na.rm = TRUE)
+  ) %>%
+  rowwise() %>%
+  mutate(
+  
+    a = (mean_prop^2 - mean_prop^3 - mean_prop * var_prop) / var_prop,
+    b = (mean_prop * (1 - mean_prop)^2 - (1 - mean_prop) * var_prop) / var_prop,
+    # Ensure valid parameters (avoid negatives)
+    a = pmax(a, 0.1),
+    b = pmax(b, 0.1),
+    # Convert back to score scale (0-100)
+    mean_score = 100 * (a / (a + b)),
+    sd_score = 100 * sqrt((a * b) / ((a + b)^2 * (a + b + 1)))
+  )
+
+priors <- historical_data %>%
+  mutate(
+    coef = paste0("Group", Group),  
+    prior = sprintf("normal(%s, %s)", round(mean_score, 1), round(sd_score, 1))
+  ) %>%
+  dplyr::select(coef, prior)
+
+
+priors_list <- set_prior(
+  priors$prior, 
+  class = "b", 
+  coef = priors$coef  
+)
+
+```
+
+
+# Model
+```{r, warning=FALSE, results='hide'}
+
+model_beta_prior <- brm(
+  bf(Score ~ 0+  Group + (1 | Lecturer)),
+  data = long_data,
+  prior = c(
+    priors_list, 
+    set_prior("cauchy(0, 5)", class = "sd"),  
+    set_prior("cauchy(0, 5)", class = "sigma") 
+  ),
+  
+)
+```
+
+# output and model comparison
+
+```{r, warning=FALSE}
+summary(model_beta_prior)
+
+loo_compare(loo(model),loo( model_beta_prior))
+
+```
+
+The density plots an the fact that they data is bounded one can assume that the data are beta distributed for each group thus it makes sense to use beta distribution as our subjective priors for each group. i used AI to fit the model and AI changed the beta distribution information to a normal distribution for each group. (OpenAI. (2024). ChatGPT (May 2024 version) [Large language model]. https://chat.openai.com)
+
+And given the loo the subjective prior model fits much better than that of the vague prior.
+
+# 10. 
+
+One can make the Group effect to be random to account for the difference in students, also more variables can be introduced like peer evaluations and maybe include give different roles to each student to contribute to the research project this will make it easy to assess individual student. 
+
+(OpenAI. (2024). ChatGPT (May 2024 version) [Large language model]. https://chat.openai.com)
+# 11.
+
+
+```{r}
+
+save.image("https://github.com/mkhulekelinkosi/Bayes6.git
+")
+```
+
+
+
+

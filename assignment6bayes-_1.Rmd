@@ -1,0 +1,109 @@
+---
+title: "Assignment6_bayes"
+author: "mkhulekeli Nkosi 2017159092"
+date:  "`r Sys.Date()`"
+output: word_document
+---
+
+
+
+# 1. 
+
+The residual error is caused by the different  groups that will do presentation and by the different groups of assessors. Also not having enough variables to explain the the final mark.
+
+# 2. 
+
+There is always a factor that influences an outcome but according to the above assumptions i would say in this case they are enough for the average assessor mark to be correct on average.
+
+# 3. 
+
+```{r}
+data<- readxl::read_xlsx("BayesAssignment6of2025.xlsx")
+summary(data)
+sapply(data, class)
+
+colSums(is.na(data))
+library(mice)
+md.pattern(data)
+
+```
+
+All the columns are numeric excerpt for the group column. And 45 missing values are observed in total. The missingness patterns given the visualisations on can conclude that the middingness is MAR because the missin values in lecturer E are missing when lecture F And G are missing missingness is dependent on the two variables also lecture D only one is not dependent on G and F.
+
+# 4. 
+
+```{r}
+library(tidyr)
+
+long_data <- pivot_longer(data, cols= c(LecturerA,LecturerB,LecturerC,LecturerD,LecturerE,LecturerF,LecturerG) ,names_to = c("Lecturer"), values_to = "Score")
+
+new_data<- na.omit(long_data)
+unique(new_data$Lecturer)
+```
+
+# 5. 
+
+In our case the group of students is our Fixed effect because we not interested in how the next possible group will affect the final mark, with the lecturer as the random effect each group will experience the lecture effect and one would like to know how a different lecturer not included in this fit  will grade each group.(read slides)
+
+# 6.
+The prior for the group intercepts, and intercept is a normal prior and also the sigma as a cauchy.
+
+```{r,results='hide'}
+library(brms)
+model <- brm(
+  formula = Score ~ Group  + (1 | Lecturer),
+  data = new_data,
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"), 
+    set_prior("normal(0, 5)", class = "Intercept"),
+    set_prior("cauchy(0, 5)", class = "sd")   
+  ),
+  iter = 5000
+)
+```
+
+```{r}
+summary(model)
+
+```
+
+# 7.
+
+```{r}
+
+fixed_effects <- fixef(model, summary = TRUE) 
+fit<-fitted(model)
+pred_vals <- predict(model, summary = TRUE)
+data_est<- cbind(new_data$Group,fit,pred_vals)
+data_est<- data_est[,c(-3,-6,-7)]
+colnames(data_est) <- c("Groups","estimates","CI2.5", "CI97.5", "PI2.5","PI97.5")
+data.frame(data_est)
+```
+
+
+# 8.
+
+lecturer B is least biased
+
+```{r}
+library(dplyr)
+assessor_biases <- ranef(model)$Lecturer %>%
+  as.data.frame() %>%
+  arrange(Estimate.Intercept)
+
+least_biased <- assessor_biases[which.min(abs(assessor_biases$Estimate.Intercept)), ]
+least_biased
+
+```
+
+
+# 9.
+
+```{r}
+
+```
+
+
+
+
+
